@@ -18,38 +18,33 @@ def load_rag_engine():
     Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
     
     # --- SETUP DATABASE (The Upgrade) ---
-    # We define a folder on your disk to save the data
     db_path = "./chroma_db"
     collection_name = "my_practice_docs"
 
     # Initialize the database client (Persistent = saves to disk)
     db_client = chromadb.PersistentClient(path=db_path)
     
-    # Create (or get) a collection (think of this as a "Table" in SQL)
+    # Create (or get) a collection
     chroma_collection = db_client.get_or_create_collection(collection_name)
     
-    # Tell LlamaIndex to use this Chroma collection as its storage
+    # Tell LlamaIndex to use this Chroma collection
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
     # --- LOGIC: CREATE vs LOAD ---
-    # If the collection is empty, it means this is the first run.
     if chroma_collection.count() == 0:
         with st.spinner("First run: Reading PDF and saving to database..."):
-            # Load the PDF
             documents = SimpleDirectoryReader("data").load_data()
-            # Create the index AND save it to the storage_context (Disk)
             index = VectorStoreIndex.from_documents(
                 documents, storage_context=storage_context
             )
     else:
         with st.spinner("Database found! Loading existing memory..."):
-            # Load the existing index from the storage_context (Disk)
             index = VectorStoreIndex.from_vector_store(
                 vector_store, storage_context=storage_context
             )
             
-    # Return the engine (upgraded to 'chat' so it remembers context)
+    # Return the engine (Chat Mode = Context)
     return index.as_chat_engine(chat_mode="context", system_prompt="You are a helpful expert.")
 
 # Initialize the engine
@@ -72,8 +67,21 @@ if prompt := st.chat_input("Ask something about your document..."):
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            # We use 'chat' here instead of 'query'
+            # 1. Get the response object
             response = query_engine.chat(prompt)
+            
+            # 2. Display the main answer
             st.markdown(response.response)
-    
-    st.session_state.messages.append({"role": "assistant", "content": response.response})
+            
+            # 3. CITATION FEATURE (The Upgrade)
+            with st.expander("📚 View Source Evidence"):
+                for i, node in enumerate(response.source_nodes):
+                    st.markdown(f"**Source Chunk {i+1}:**")
+                    st.info(f"...{node.text}...")
+                    
+                    file_name = node.metadata.get('file_name', 'Unknown')
+                    page_num = node.metadata.get('page_label', 'Unknown')
+                    st.caption(f"📍 Found in: **{file_name}**, Page **{page_num}**")
+            
+            # 4. Save the assistant's response to history
+            st.session_state.messages.append({"role": "assistant", "content": response.response})
