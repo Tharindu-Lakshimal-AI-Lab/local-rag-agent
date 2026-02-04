@@ -3,6 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![LlamaIndex](https://img.shields.io/badge/Framework-LlamaIndex-purple)
 ![Ollama](https://img.shields.io/badge/Model-Llama3.2-orange)
+![ChromaDB](https://img.shields.io/badge/VectorDB-ChromaDB-green)
 ![Status](https://img.shields.io/badge/Status-Active-green)
 
 A fully local, offline Retrieval-Augmented Generation (RAG) system that allows you to chat with your private PDF documents without sending data to the cloud. Built for privacy, speed, and zero cost.
@@ -12,10 +13,10 @@ A fully local, offline Retrieval-Augmented Generation (RAG) system that allows y
 ## 🚀 Features
 
 -   **100% Offline:** Runs entirely on your local hardware using Ollama.
--   **Zero Cost:** No OpenAI API keys or subscription fees required.
+-   **Persistent Memory:** Uses **ChromaDB** to save your document index to disk. You only need to build the index once!
+-   **Explainable AI:** Provides **Citations** (Source Nodes) for every answer, showing exactly which part of the PDF was used.
 -   **Privacy Focused:** Your data never leaves your laptop.
 -   **Smart Context:** Uses Vector Embeddings to understand specific details in your documents.
--   **Interactive UI:** Clean chat interface built with Streamlit.
 
 ## 🛠️ Tech Stack
 
@@ -23,14 +24,14 @@ A fully local, offline Retrieval-Augmented Generation (RAG) system that allows y
 -   **Orchestration:** LlamaIndex
 -   **Embeddings:** HuggingFace (`BAAI/bge-small-en-v1.5`)
 -   **Interface:** Streamlit
--   **Vector Store:** In-memory VectorStoreIndex
+-   **Vector Database:** ChromaDB (Persistent Storage)
 
 ---
 
 ## ⚙️ Installation Guide
 
 ### Prerequisites
-1.  **Install Python** (3.9 or higher).
+1.  **Install Python** (3.10 or higher).
 2.  **Install Ollama:** Download from [ollama.com](https://ollama.com).
 3.  **Pull the Model:** Open your terminal and run:
     ```bash
@@ -55,7 +56,7 @@ A fully local, offline Retrieval-Augmented Generation (RAG) system that allows y
 
 3.  Install dependencies:
     ```bash
-    pip install llama-index llama-index-llms-ollama llama-index-embeddings-huggingface streamlit
+    pip install -r requirements.txt
     ```
 
 ---
@@ -67,18 +68,23 @@ A fully local, offline Retrieval-Augmented Generation (RAG) system that allows y
     ```bash
     streamlit run app.py
     ```
-3.  Open your browser to the URL shown (usually `http://localhost:8501`).
-4.  Start chatting with your document!
+3.  **First Run:** The app will take a moment to read your PDF and save it to `chroma_db` (Disk).
+4.  **Next Runs:** The app will load instantly from the database!
 
 ---
 
 ## 🧠 System Architecture
 
 ```mermaid
-graph LR
-    A[User Query] --> B(Streamlit UI);
-    B --> C{LlamaIndex};
-    C -->|Retrieve| D[Vector Store];
-    D -->|Context| C;
-    C -->|Prompt + Context| E[Ollama / Llama 3.2];
-    E -->|Answer| B;
+graph TD
+    User[User Query] --> UI(Streamlit UI);
+    UI --> Engine{LlamaIndex};
+    
+    subgraph "Storage Layer"
+    Engine -->|Retrieve| DB[(ChromaDB)];
+    DB -->|Source Chunks| Engine;
+    end
+    
+    Engine -->|Prompt + Context| LLM[Ollama / Llama 3.2];
+    LLM -->|Answer| UI;
+    UI -->|Show Citations| User;
